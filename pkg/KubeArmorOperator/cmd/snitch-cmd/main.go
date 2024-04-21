@@ -14,7 +14,9 @@ import (
 	"strings"
 
 	"github.com/kubearmor/KubeArmor/pkg/KubeArmorOperator/seccomp"
+	"github.com/opencontainers/runtime-spec/specs-go"
 
+	hooks "github.com/containers/common/pkg/hooks/1.0.0"
 	"github.com/kubearmor/KubeArmor/pkg/KubeArmorOperator/common"
 	"github.com/kubearmor/KubeArmor/pkg/KubeArmorOperator/enforcer"
 	"github.com/kubearmor/KubeArmor/pkg/KubeArmorOperator/k8s"
@@ -125,7 +127,7 @@ func snitch() {
 	ociHooksLabel := "no"
 	if runtime == "cri-o" { // only cri-o supported for now
 		ociHooksLabel = "yes"
-		if err := applyCRIOHook(); err != nil {
+		if err := applyCRIOHook(socket); err != nil {
 			Logger.Errorf("Failed to apply OCI hook: %s", err.Error())
 			ociHooksLabel = "no"
 		}
@@ -167,7 +169,7 @@ func snitch() {
 	}
 }
 
-func applyCRIOHook() error {
+func applyCRIOHook(socket string) error {
 	// TODO: hook path should be fetched from container runtime. This is the default path
 	hookDir := "/usr/share/containers/oci/hooks.d/"
 	if err := os.MkdirAll(hookDir, 0750); err != nil {
@@ -177,13 +179,35 @@ func applyCRIOHook() error {
 	if err != nil {
 		return err
 	}
-	src, err := os.Open("/hook/ka.json")
+	defer dst.Close()
+	always := true
+	hook := hooks.Hook{
+		Version: "1.0.0",
+		Hook: specs.Hook{
+			Path: "/usr/share/kubearmor/hook",
+			Args: []string{
+				"/usr/share/kubearmor/hook",
+				"--runtime-socket",
+				socket,
+				"--k8s",
+			},
+		},
+		When: hooks.When{Always: &always},
+		Stages: []string{
+			"createRuntime",
+			"poststop",
+		},
+	}
+	hookBytes, err := json.Marshal(hook)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(dst, src); err != nil {
+
+	_, err = dst.Write(hookBytes)
+	if err != nil {
 		return err
 	}
+
 	kaDir := "/usr/share/kubearmor"
 	if err := os.MkdirAll(kaDir, 0750); err != nil {
 		return err
@@ -192,10 +216,12 @@ func applyCRIOHook() error {
 	if err != nil {
 		return err
 	}
-	srcBin, err := os.Open("/hook/hook")
+	defer dstBin.Close()
+	srcBin, err := os.Open("/hook")
 	if err != nil {
 		return err
 	}
+	defer srcBin.Close()
 	if _, err := io.Copy(dstBin, srcBin); err != nil {
 		return err
 	}

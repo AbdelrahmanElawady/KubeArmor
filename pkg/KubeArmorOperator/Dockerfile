@@ -40,7 +40,7 @@ COPY $OPERATOR_DIR/hook hook
 # Build
 RUN CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} GO111MODULE=on go build -a -o operator cmd/operator/main.go
 RUN CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} GO111MODULE=on go build -a -o snitch cmd/snitch-cmd/main.go
-RUN CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} GO111MODULE=on go build -a -o hook/hook hook/main.go
+RUN CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} GO111MODULE=on go build -a -o hook/hook ./hook
 
 FROM redhat/ubi9-minimal as operator
 
@@ -81,7 +81,7 @@ LABEL name="kubearmor-snitch" \
 
 ARG OPERATOR_DIR=pkg/KubeArmorOperator
 COPY --from=builder /KubeArmor/$OPERATOR_DIR/snitch /snitch
-COPY --from=builder /KubeArmor/$OPERATOR_DIR/hook /hook
+COPY --from=builder /KubeArmor/$OPERATOR_DIR/hook/hook /hook
 COPY LICENSE /licenses/license.txt
 
 ENTRYPOINT ["/snitch"]
