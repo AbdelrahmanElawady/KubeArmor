@@ -14,6 +14,13 @@ import (
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
+type containerInfo struct {
+	SandboxID   string     `json:"sandboxID"`
+	Pid         int        `json:"pid"`
+	RuntimeSpec specs.Spec `json:"runtimeSpec"`
+	Privileged  bool       `json:"privileged"`
+}
+
 type crioHandler struct {
 	client runtime.RuntimeServiceClient
 	conn   *grpc.ClientConn
@@ -32,8 +39,9 @@ func newCRIOHandler(socket string) (handler, error) {
 	return &crioHandler{client: client, conn: conn}, nil
 }
 
-func (h *crioHandler) close() {
-	_ = h.conn.Close()
+func (h *crioHandler) close() error {
+	return h.conn.Close()
+
 }
 
 func (h *crioHandler) listContainers(ctx context.Context) ([]types.Container, error) {
@@ -96,11 +104,4 @@ func containerFromContainerStatus(status *runtime.ContainerStatus, info string) 
 	container.PidNS, container.MntNS = getNS(containerInfo.Pid)
 
 	return container, nil
-}
-
-type containerInfo struct {
-	SandboxID   string     `json:"sandboxID"`
-	Pid         int        `json:"pid"`
-	RuntimeSpec specs.Spec `json:"runtimeSpec"`
-	Privileged  bool       `json:"privileged"`
 }
