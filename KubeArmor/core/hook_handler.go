@@ -5,6 +5,7 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -27,7 +28,11 @@ func (dm *KubeArmorDaemon) ListenToHook() {
 	}
 
 	listenPath := filepath.Join(kubearmorDir, "ka.sock")
-	_ = os.Remove(listenPath) // in case kubearmor crashed and the socket wasn't removed
+	err := os.Remove(listenPath) // in case kubearmor crashed and the socket wasn't removed
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Fatal(err)
+	}
+
 	socket, err := net.Listen("unix", listenPath)
 	if err != nil {
 		log.Fatal(err)
@@ -66,11 +71,7 @@ func (dm *KubeArmorDaemon) handleConn(conn net.Conn, ready *atomic.Bool) {
 			log.Fatal(err)
 		}
 
-		data := struct {
-			Operation string          `json:"operation"`
-			Detached  bool            `json:"detached"`
-			Container types.Container `json:"container"`
-		}{}
+		data := types.HookRequest{}
 
 		err = json.Unmarshal(buf[:n], &data)
 		if err != nil {
@@ -100,10 +101,10 @@ func (dm *KubeArmorDaemon) handleConn(conn net.Conn, ready *atomic.Bool) {
 			return
 		}
 
-		if data.Operation == "create" {
+		if data.Operation == types.HookContainerCreate {
 			dm.handleContainerCreate(data.Container)
 		} else {
-			dm.handleContainerStop(data.Container.ContainerID)
+			dm.handleContainerDelete(data.Container.ContainerID)
 		}
 	}
 }
@@ -113,16 +114,15 @@ func (dm *KubeArmorDaemon) handleContainerCreate(container types.Container) {
 	dm.Logger.Printf("added %s", container.ContainerID)
 
 	dm.ContainersLock.Lock()
+	defer dm.ContainersLock.Unlock()
 	if _, ok := dm.Containers[container.ContainerID]; !ok {
 		dm.Containers[container.ContainerID] = container
-		dm.ContainersLock.Unlock()
 	} else if dm.Containers[container.ContainerID].PidNS == 0 && dm.Containers[container.ContainerID].MntNS == 0 {
 		c := dm.Containers[container.ContainerID]
 		c.MntNS = container.MntNS
 		c.PidNS = container.PidNS
 		c.AppArmorProfile = container.AppArmorProfile
 		dm.Containers[c.ContainerID] = c
-		dm.ContainersLock.Unlock()
 
 		dm.EndPointsLock.Lock()
 		for idx, endPoint := range dm.EndPoints {
@@ -143,9 +143,8 @@ func (dm *KubeArmorDaemon) handleContainerCreate(container types.Container) {
 			}
 		}
 		dm.EndPointsLock.Unlock()
-	} else {
-		dm.ContainersLock.Unlock()
 	}
+
 	if len(dm.OwnerInfo) > 0 {
 		container.Owner = dm.OwnerInfo[container.EndPointName]
 	}
@@ -163,7 +162,7 @@ func (dm *KubeArmorDaemon) handleContainerCreate(container types.Container) {
 		}
 	}
 }
-func (dm *KubeArmorDaemon) handleContainerStop(containerID string) {
+func (dm *KubeArmorDaemon) handleContainerDelete(containerID string) {
 	dm.ContainersLock.Lock()
 	container, ok := dm.Containers[containerID]
 	dm.Logger.Printf("deleted %s", containerID)

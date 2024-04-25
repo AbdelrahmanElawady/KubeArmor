@@ -11,5 +11,5 @@ import (
 
 type handler interface {
 	listContainers(ctx context.Context) ([]types.Container, error)
-	close()
+	close() error
 }

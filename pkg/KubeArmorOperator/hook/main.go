@@ -88,11 +88,11 @@ func runDetached() error {
 	}
 
 	for _, container := range containers {
-		data := struct {
-			Operation string          `json:"operation"`
-			Detached  bool            `json:"detached"`
-			Container types.Container `json:"container"`
-		}{Operation: "create", Detached: true, Container: container}
+		data := types.HookRequest{
+			Operation: types.HookContainerCreate,
+			Detached:  true,
+			Container: container,
+		}
 
 		dataJSON, err := json.Marshal(data)
 		if err != nil {
@@ -118,18 +118,21 @@ func runDetached() error {
 
 func run(state specs.State) error {
 	var container types.Container
-	operation := "create"
+	operation := types.HookContainerCreate
 	// we try to connect to runtime here to make sure the socket is correct
 	// before spawning a detached process
 	handler, err := newCRIOHandler(runtimeSocket)
 	if err != nil {
 		return err
 	}
-	handler.close()
+	err = handler.close()
+	if err != nil {
+		log.Printf("failed to close runtime connection: %s", err.Error())
+	}
 
 	container.ContainerID = state.ID
 	if state.Status == specs.StateStopped {
-		operation = "delete"
+		operation = types.HookContainerDelete
 		return sendContainer(container, operation)
 	}
 
@@ -204,7 +207,7 @@ func getNS(pid int) (uint32, uint32) {
 	return pidNS, mntNS
 }
 
-func sendContainer(container types.Container, operation string) error {
+func sendContainer(container types.Container, operation types.HookOperation) error {
 	conn, err := net.Dial("unix", kubeArmorSocket)
 	if err != nil {
 		// not returning error here because this can happen in multiple cases
@@ -216,11 +219,11 @@ func sendContainer(container types.Container, operation string) error {
 
 	defer conn.Close()
 
-	data := struct {
-		Operation string          `json:"operation"`
-		Detached  bool            `json:"detached"`
-		Container types.Container `json:"container"`
-	}{Operation: operation, Detached: false, Container: container}
+	data := types.HookRequest{
+		Operation: operation,
+		Detached:  false,
+		Container: container,
+	}
 
 	dataJSON, err := json.Marshal(data)
 	if err != nil {
