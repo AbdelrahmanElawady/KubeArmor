@@ -189,7 +189,6 @@ func applyCRIOHook(socket string) error {
 				"/usr/share/kubearmor/hook",
 				"--runtime-socket",
 				socket,
-				"--k8s",
 			},
 		},
 		When: hooks.When{Always: &always},
