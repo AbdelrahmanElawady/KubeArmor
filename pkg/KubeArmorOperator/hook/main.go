@@ -25,14 +25,12 @@ import (
 var (
 	kubeArmorSocket string
 	runtimeSocket   string
-	k8s             bool
 	detached        bool
 )
 
 func main() {
 	flag.StringVar(&kubeArmorSocket, "kubearmor-socket", "/var/run/kubearmor/ka.sock", "KubeArmor socket")
 	flag.StringVar(&runtimeSocket, "runtime-socket", "", "container runtime socket")
-	flag.BoolVar(&k8s, "k8s", false, "kubernetes environment")
 	flag.BoolVar(&detached, "detached", false, "run detached")
 	flag.Parse()
 

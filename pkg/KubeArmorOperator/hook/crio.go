@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
 
 	"github.com/kubearmor/KubeArmor/KubeArmor/types"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -53,7 +54,8 @@ func (h *crioHandler) listContainers(ctx context.Context) ([]types.Container, er
 	for _, container := range containersList.GetContainers() {
 		c, err := h.getContainer(ctx, container.GetId())
 		if err != nil {
-			return nil, err
+			log.Printf("failed to get container %q: %s", container.GetId(), err.Error())
+			continue
 		}
 		containers = append(containers, c)
 	}
@@ -84,11 +86,11 @@ func containerFromContainerStatus(status *runtime.ContainerStatus, info string) 
 	container.NamespaceName = "Unknown"
 	container.EndPointName = "Unknown"
 
-	containerLables := status.Labels
-	if val, ok := containerLables["io.kubernetes.pod.namespace"]; ok {
+	containerLabels := status.Labels
+	if val, ok := containerLabels["io.kubernetes.pod.namespace"]; ok {
 		container.NamespaceName = val
 	}
-	if val, ok := containerLables["io.kubernetes.pod.name"]; ok {
+	if val, ok := containerLabels["io.kubernetes.pod.name"]; ok {
 		container.EndPointName = val
 	}
 
