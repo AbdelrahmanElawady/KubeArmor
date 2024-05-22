@@ -69,6 +69,8 @@ var (
 
 	// KubeArmorConfigMapName string = "kubearmor-config"
 
+	EnableOCIHooks bool = false
+
 	// ConfigMap Data
 	ConfigGRPC                       string = "gRPC"
 	ConfigVisibility                 string = "visibility"
@@ -467,6 +469,15 @@ func init() {
 	if IsCertifiedOperator() {
 		HostPID = true
 	}
+	EnableOCIHooks = GetOCIHooks()
+}
+
+func GetOCIHooks() bool {
+	val := os.Getenv("KUBEARMOR_OCI_HOOKS")
+	if val != "" {
+		return true
+	}
+	return false
 }
 
 func AddOrReplaceArg(add, replace string, args *[]string) {

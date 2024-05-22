@@ -38,9 +38,6 @@ func main() {
 		log.Println("runtime socket must be set")
 		os.Exit(1)
 	}
-	if !strings.HasPrefix(runtimeSocket, "unix://") {
-		runtimeSocket = "unix://" + runtimeSocket
-	}
 	if detached {
 		if err := runDetached(); err != nil {
 			log.Println(err)
@@ -76,7 +73,7 @@ func runDetached() error {
 	conn := waitOnKubeArmor()
 	defer conn.Close()
 
-	handler, err := newCRIOHandler(runtimeSocket)
+	handler, err := getRuntimeHandler(runtimeSocket)
 	if err != nil {
 		return err
 	}
@@ -119,7 +116,7 @@ func run(state specs.State) error {
 	operation := types.HookContainerCreate
 	// we try to connect to runtime here to make sure the socket is correct
 	// before spawning a detached process
-	handler, err := newCRIOHandler(runtimeSocket)
+	handler, err := getRuntimeHandler(runtimeSocket)
 	if err != nil {
 		return err
 	}
@@ -276,4 +273,13 @@ func startDetachedProcess() error {
 		return err
 	}
 	return cmd.Process.Release()
+}
+
+func getRuntimeHandler(socket string) (handler, error) {
+	if strings.Contains(socket, "crio") {
+		return newCRIOHandler(socket)
+	} else if strings.Contains(socket, "containerd") {
+		return newContainerdHandler(socket)
+	}
+	return nil, fmt.Errorf("only containerd and crio are supported")
 }

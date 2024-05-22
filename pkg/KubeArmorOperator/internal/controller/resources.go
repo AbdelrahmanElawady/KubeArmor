@@ -52,7 +52,6 @@ func generateDaemonset(name, enforcer, runtime, socket, btfPresent, apparmorfs, 
 		})
 		ociArgs = append(ociArgs,
 			"--useOCIHooks",
-			"true",
 		)
 	} else {
 		vols = append(vols, runtimeVolumes...)
@@ -76,6 +75,7 @@ func generateDaemonset(name, enforcer, runtime, socket, btfPresent, apparmorfs, 
 		common.OsLabel:       "linux",
 		common.BTFLabel:      btfPresent,
 		common.SeccompLabel:  seccompPresent,
+		common.OCIHooksLabel: ociHooks,
 	}
 	daemonset.Spec.Template.Spec.NodeSelector = common.CopyStrMap(labels)
 	labels["kubearmor-app"] = "kubearmor"
@@ -331,6 +331,9 @@ func deploySnitch(nodename string, runtime string) *batchv1.Job {
 				},
 			},
 		},
+	}
+	if common.EnableOCIHooks {
+		job.Spec.Template.Spec.Containers[0].Args = append(job.Spec.Template.Spec.Containers[0].Args, "--oci-hooks")
 	}
 	return &job
 }

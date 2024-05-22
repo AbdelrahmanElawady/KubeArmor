@@ -46,6 +46,7 @@ var LsmOrder string
 var PathPrefix string = "/rootfs"
 var NodeName string
 var Runtime string
+var EnableOCIHooks bool
 
 // Cmd represents the base command when called without any subcommands
 var Cmd = &cobra.Command{
@@ -90,6 +91,7 @@ func init() {
 	Cmd.PersistentFlags().StringVar(&NodeName, "nodename", "", "node name to label")
 	Cmd.PersistentFlags().StringVar(&PathPrefix, "pathprefix", "/rootfs", "path prefix for runtime search")
 	Cmd.PersistentFlags().StringVar(&Runtime, "runtime", "", "runtime detected by k8s")
+	Cmd.PersistentFlags().BoolVar(&EnableOCIHooks, "oci-hooks", false, "enable oci hooks")
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -125,7 +127,7 @@ func snitch() {
 		os.Exit(1)
 	}
 	ociHooksLabel := "no"
-	if runtime == "cri-o" { // only cri-o supported for now
+	if runtime == "cri-o" || EnableOCIHooks {
 		ociHooksLabel = "yes"
 		if err := applyCRIOHook(socket); err != nil {
 			Logger.Errorf("Failed to apply OCI hook: %s", err.Error())
